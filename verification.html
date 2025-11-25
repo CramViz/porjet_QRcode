@@ -41,8 +41,6 @@
     .status-detail {
       font-size: 1.1rem;
     }
-    .ok-text { color: #166534; }
-    .ko-text { color: #991b1b; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -136,7 +134,6 @@
     À chaque validation sur un téléphone, le dernier passage apparaît ici avec un bip + couleur.
   </div>
 
-  <!-- Bouton vers l'interface d’administration -->
   <div style="text-align:center; margin-top: 12px;">
     <button class="admin-btn" onclick="window.location.href='admin.html'">
       Aller à l'interface admin
@@ -215,13 +212,16 @@
         .orderBy("timestamp", "desc")
         .limit(20)
         .onSnapshot((snapshot) => {
+          // ✅ important : toujours vider le tableau au début
+          logBody.innerHTML = "";
+
           if (snapshot.empty) {
             statusText.textContent = "En attente de scan...";
             statusDetail.textContent = "Le dernier passage s'affichera ici.";
+            // tableau déjà vidé juste au-dessus
             return;
           }
 
-          logBody.innerHTML = "";
           snapshot.forEach((doc) => {
             const data = doc.data();
             const tr = document.createElement("tr");
