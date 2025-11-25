@@ -244,29 +244,49 @@
       ALIAS_CRENEAU = alias;
     }
 
-    async function chargerListesDepuisFirestore() {
+    // ====== Écoute temps réel de listesEleves ======
+    function ecouterListesDepuisFirestore() {
       if (!db) {
         fbError.style.display = "block";
         fbError.textContent = "Erreur : Firebase non configuré.";
         return;
       }
-      try {
-        const snap = await db.collection("listesEleves").get();
+
+      db.collection("listesEleves").onSnapshot((snap) => {
+        // Reset de l'état à chaque changement
+        LISTES = {};
+        listesChargees = false;
+        selectCreneau.disabled = true;
+        btnValider.disabled = true;
+        selectCreneau.innerHTML = "";
+        dataList.innerHTML = "";
+        inputNom.value = "";
+        divResult.style.display = "none";
+        document.body.classList.remove("ok-bg", "ko-bg");
+
         if (snap.empty) {
+          // Aucune liste : message d'erreur + option vide
           fbError.style.display = "block";
           fbError.textContent = "Aucune liste d'élèves trouvée dans Firestore.";
+          const opt = document.createElement("option");
+          opt.value = "";
+          opt.disabled = true;
+          opt.selected = true;
+          opt.textContent = "Aucun créneau disponible";
+          selectCreneau.appendChild(opt);
           return;
         }
 
-        LISTES = {};
+        fbError.style.display = "none";
+
+        // Reconstruire LISTES
         snap.forEach(doc => {
           const data = doc.data();
           LISTES[doc.id] = data.eleves || [];
         });
 
+        // Alias + remplissage du select
         construireAlias();
-
-        // Remplir le select des créneaux
         selectCreneau.innerHTML = "";
         Object.keys(LISTES).forEach(creneau => {
           const opt = document.createElement("option");
@@ -285,23 +305,25 @@
           if (LISTES[c]) {
             selectCreneau.value = c;
             selectCreneau.disabled = true;
-            const badge = document.createElement("span");
-            badge.className = "creneau-locked-badge";
-            badge.textContent = "verrouillé par le QR code";
-            labelCreneau.appendChild(badge);
+            if (!document.querySelector(".creneau-locked-badge")) {
+              const badge = document.createElement("span");
+              badge.className = "creneau-locked-badge";
+              badge.textContent = "verrouillé par le QR code";
+              labelCreneau.appendChild(badge);
+            }
           }
+        } else {
+          selectCreneau.disabled = false;
         }
 
         listesChargees = true;
-        selectCreneau.disabled = false;
         btnValider.disabled = false;
-        fbError.style.display = "none";
         updateNameList();
-      } catch (e) {
-        console.error(e);
+      }, (error) => {
+        console.error(error);
         fbError.style.display = "block";
         fbError.textContent = "Erreur lors du chargement des listes d'élèves.";
-      }
+      });
     }
 
     // ====== Envoi Firestore (pour l'écran employé) ======
@@ -375,8 +397,8 @@
       }
     });
 
-    // Charger les listes au démarrage
-    chargerListesDepuisFirestore();
+    // Écoute des listes au démarrage (temps réel)
+    ecouterListesDepuisFirestore();
   </script>
 </body>
 </html>
