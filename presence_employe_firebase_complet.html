@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Présence - Écran employé</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+      background: #f5f5f5;
+      transition: background-color 0.2s ease;
+    }
+    body.ok-bg { background: #dcfce7; }
+    body.ko-bg { background: #fee2e2; }
+    h1 {
+      font-size: 1.6rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    h1 small {
+      font-size: 0.9rem;
+      font-weight: 400;
+      color: #555;
+    }
+    .big-card {
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .status-text {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .status-detail {
+      font-size: 1.1rem;
+    }
+    .ok-text { color: #166534; }
+    .ko-text { color: #991b1b; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+    th {
+      background: #eff6ff;
+      font-weight: 700;
+    }
+    tr:last-child td { border-bottom: none; }
+    .badge-present {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #bbf7d0;
+      color: #166534;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-absent {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #fecaca;
+      color: #991b1b;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .hint {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #555;
+      text-align: center;
+    }
+    .error-msg {
+      font-size: 0.9rem;
+      color: #b91c1c;
+      margin-top: 8px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Suivi en temps réel<br><small>Mode employé</small></h1>
+
+  <div class="big-card">
+    <div id="statusText" class="status-text">En attente de scan...</div>
+    <div id="statusDetail" class="status-detail">Le dernier passage s'affichera ici.</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Heure</th>
+        <th>Créneau</th>
+        <th>Nom</th>
+        <th>Statut</th>
+      </tr>
+    </thead>
+    <tbody id="logBody">
+    </tbody>
+  </table>
+
+  <div id="fbError" class="error-msg" style="display:none;"></div>
+  <div class="hint">
+    Laisse cette page ouverte sur l'écran de l'employé.<br>
+    À chaque validation sur un téléphone, le dernier passage apparaît ici avec un bip + couleur.
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBCi4rQd43QsxPektjewCC5Ym83jHMWddA",
+      authDomain: "app-epf-377c3.firebaseapp.com",
+      projectId: "app-epf-377c3",
+      storageBucket: "app-epf-377c3.firebasestorage.app",
+      messagingSenderId: "790462947678",
+      appId: "1:790462947678:web:c4755c8e410596120aefcf",
+      measurementId: "G-3FKJK8PVZ0"
+    };
+
+    let db = null;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+    } catch (e) {
+      console.error("Erreur Firebase:", e);
+    }
+
+    const fbError = document.getElementById("fbError");
+    const statusText = document.getElementById("statusText");
+    const statusDetail = document.getElementById("statusDetail");
+    const logBody = document.getElementById("logBody");
+
+    function playBeep(isOk) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+
+      if (isOk) {
+        osc.frequency.setValueAtTime(1100, ctx.currentTime);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(1400, ctx.currentTime + 0.18);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.2);
+      } else {
+        osc.frequency.setValueAtTime(380, ctx.currentTime);
+        gain.gain.setValueAtTime(0.22, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(300, ctx.currentTime + 0.45);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      }
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+    }
+
+    function formatDate(ts) {
+      if (!ts) return "";
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleTimeString("fr-FR", {
+        hour: "2-digit", minute: "2-digit", second: "2-digit"
+      });
+    }
+
+    if (!db) {
+      fbError.style.display = "block";
+      fbError.textContent = "Firebase non configuré. Impossible de recevoir les présences.";
+    } else {
+      fbError.style.display = "none";
+      let firstSnapshot = true;
+      db.collection("presences")
+        .orderBy("timestamp", "desc")
+        .limit(20)
+        .onSnapshot((snapshot) => {
+          if (snapshot.empty) {
+            statusText.textContent = "En attente de scan...";
+            statusDetail.textContent = "Le dernier passage s'affichera ici.";
+            return;
+          }
+
+          logBody.innerHTML = "";
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            const tr = document.createElement("tr");
+            const tdHeure = document.createElement("td");
+            const tdCreneau = document.createElement("td");
+            const tdNom = document.createElement("td");
+            const tdStatut = document.createElement("td");
+
+            tdHeure.textContent = formatDate(data.timestamp);
+            tdCreneau.textContent = data.creneau || "";
+            tdNom.textContent = data.nom || "";
+            const badge = document.createElement("span");
+            if (data.present) {
+              badge.className = "badge-present";
+              badge.textContent = "Présent";
+            } else {
+              badge.className = "badge-absent";
+              badge.textContent = "Non trouvé";
+            }
+            tdStatut.appendChild(badge);
+
+            tr.appendChild(tdHeure);
+            tr.appendChild(tdCreneau);
+            tr.appendChild(tdNom);
+            tr.appendChild(tdStatut);
+            logBody.appendChild(tr);
+          });
+
+          const latest = snapshot.docs[0].data();
+          statusText.textContent = latest.nom || "(nom manquant)";
+          statusDetail.textContent = (latest.present ? "Présent" : "Nom non trouvé") + " · " + (latest.creneau || "");
+
+          document.body.classList.remove("ok-bg", "ko-bg");
+          document.body.classList.add(latest.present ? "ok-bg" : "ko-bg");
+
+          if (firstSnapshot) {
+            firstSnapshot = false;
+            return;
+          }
+
+          playBeep(!!latest.present);
+
+          setTimeout(() => {
+            document.body.classList.remove("ok-bg", "ko-bg");
+          }, 2000);
+        }, (error) => {
+          console.error("Erreur écoute Firestore:", error);
+          fbError.style.display = "block";
+          fbError.textContent = "Erreur de connexion à Firebase.";
+        });
+    }
+  </script>
+</body>
+</html>

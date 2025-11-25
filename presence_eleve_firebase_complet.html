@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Présence - Élève</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 20px;
+      max-width: 520px;
+      margin: 0 auto;
+      background: #f5f5f5;
+      transition: background-color 0.2s ease;
+    }
+    body.ok-bg { background: #dcfce7; }
+    body.ko-bg { background: #fee2e2; }
+    h1 {
+      font-size: 1.4rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    h1 small {
+      font-size: 0.9rem;
+      font-weight: 400;
+      color: #555;
+    }
+    .card {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    select, input {
+      width: 100%;
+      padding: 8px 10px;
+      margin-top: 6px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 16px;
+      width: 100%;
+      padding: 10px;
+      border-radius: 999px;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+    .result {
+      margin-top: 16px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      text-align: center;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    .ok {
+      color: #166534;
+      background: #bbf7d0;
+    }
+    .ko {
+      color: #991b1b;
+      background: #fecaca;
+    }
+    .hint {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #555;
+      text-align: center;
+    }
+    .creneau-locked-badge {
+      display: inline-block;
+      margin-left: 8px;
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+    .error-msg {
+      font-size: 0.8rem;
+      color: #b91c1c;
+      margin-top: 4px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Pointage de présence<br><small>Mode élève</small></h1>
+  <div class="card">
+    <label id="labelCreneau" for="creneau">Créneau</label>
+    <select id="creneau">
+      <option value="Passage à partir de 14H">Passage à partir de 14H</option>
+      <option value="Passage à partir de 15H">Passage à partir de 15H</option>
+      <option value="Passage à partir de 16H">Passage à partir de 16H</option>
+    </select>
+
+    <label for="nom">Nom et prénom</label>
+    <input id="nom" type="text" placeholder="Commence à taper ton nom..." list="listeNoms" autocomplete="off">
+    <datalist id="listeNoms"></datalist>
+
+    <button id="valider">Valider</button>
+
+    <div id="result" class="result" style="display:none;"></div>
+    <div id="fbError" class="error-msg" style="display:none;"></div>
+    <div class="hint">
+      1. Scanne le QR code<br>
+      2. Vérifie que le créneau est correct<br>
+      3. Tape ou choisis ton nom dans la liste<br>
+      4. Le bip confirme ta présence (aigu = OK, grave = erreur)
+    </div>
+  </div>
+
+  <!-- Firebase (CDN compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <script>
+    // ====== Config Firebase ======
+    const firebaseConfig = {
+      apiKey: "AIzaSyBCi4rQd43QsxPektjewCC5Ym83jHMWddA",
+      authDomain: "app-epf-377c3.firebaseapp.com",
+      projectId: "app-epf-377c3",
+      storageBucket: "app-epf-377c3.firebasestorage.app",
+      messagingSenderId: "790462947678",
+      appId: "1:790462947678:web:c4755c8e410596120aefcf",
+      measurementId: "G-3FKJK8PVZ0"
+    };
+
+    let db = null;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+    } catch (e) {
+      console.error("Erreur Firebase:", e);
+    }
+
+    // ====== 1. LISTES D'ÉTUDIANTS PAR CRÉNEAU (depuis Excel) ======
+    const LISTES = {
+      "Passage à partir de 14H": ["NDOCKO Aaron", "NEFUSSY Thomas", "NGUYEN Alicia", "NGUYEN DAC Cao-An", "NIANE Andy", "NOIZET Martin", "NOSREE Vincent", "NOURISSON Mathis", "ORJAS Camille", "PAIN Andrea", "PATTE Sylvain", "PAULY Mathis", "PELET Matthieu", "PEREZ Clara-Laetitia", "PERIDY Louka", "PERRIER Sixtine", "PETIT Chloe", "PETRAU Sophie", "PICHOU Alexandre", "PINTO --EVRARD Alexandre Daniel", "PLASSARD Carla", "POIRAUD Eliette", "POIRIER-VERDON Alexis", "POMMEL Amaury", "PORTAL Alexis", "POULENAT Paul", "POUPON Antoine", "POUSSIER Tom", "QILAFKU Eduard", "RAFFESTIN Arthur", "RANDAZZO Evan", "RANIC Aleksandar", "RAVEL Victoria", "RAYNAL Emeline", "REBY Leo", "RELMY Valentin", "REMOND Gabriel", "RIBEIRO Laura", "RICHARD Hugo", "RIDEAU Titouan", "RISTORCELLI Clara", "ROBART -- LE GOUGUEC Nathan", "ROBERGE Mathias", "ROMAN Baptiste", "ROUSSELIN Jérémy", "SAHLI Sandra", "SAIBI--VILACA Amelia", "SANGBEU Christ Aaron", "SCUTARI Gabriela", "SETIN--PREVOTAT Thibault", "SILBERMANN Thibault", "SIMEONI Lisandru", "SONZOGNI Quentin", "SOUPRAYEN Mael", "SOUVIGNET Eva", "STAES Elie", "STROH Clement", "SUDAN Thomas", "TAVERNIER Sébastien", "THEBAUDEAU Tristan", "THIRIMANNA Bryan", "THOUVENIN Amelie", "TOUET--SI ABDELHADI Pierre", "TOURILLON Lisa", "TOURPE Loris", "UNDIANO Clara", "VAILLANT Lise", "VALERO Albane", "VALUTSKIKH Vincent", "VAUTHIER Matthieu", "VILAPLANA Baptiste", "VRIGNAUD Polin", "WASIER Marin", "WISSOCQ Antoine", "ZHENG Justin", "CAILLOT Erwann"],
+      "Passage à partir de 15H": ["FRANCOIS-ROSE Enio", "GABARD Romain", "GAUTIER Victor", "GIACOMETTI--ROSSIGNOL Alix", "GIROUX Hector", "GOMES Alexandre", "GOUBIE Monteil", "GOULET Martin", "GOUMAIN Margaux", "GRENIER Romain", "GSELL Eliot", "GUICHON Quentin", "GUILLAUME--DUBAN Alexane", "GUY--BOURGELAS Rafail", "HADJ AHMED Amin", "HALIT Alexandre", "HENRY Elliot", "HERBIN Thibaut", "HOSSA Alexandre", "HOYAUX Romain", "HUET Titouan", "HUG--THOUVEREZ Matthieu", "HUGUES Jérémie", "IDJER Lina", "JACQUOT Mathilde", "JARRET--LETREGUILLY Loriane", "JAYASEKERA WITHANAGE Probodha", "JEAN Coline", "JEBALI Mohamed-Yanis", "JMIL Yosr", "JOLY Arthur", "KARDACHE Neyl", "KOSTRZEWA Mathilde", "KROL Jérémie", "LACIRE Ines", "LANDJI Ada Léonie", "LE BOURHIS Matieu", "LE FUR Matéo", "LE LIEVRE Louis", "LE LIGNE Enora", "LE NET Alienor", "LE RAT Alexandre", "LE VERRE Corentin", "LEARD Clémence", "LEBRUN Sylvain", "LECLERCQ Hippolyte", "LEFEVRE Antoine", "LEIRAS Julie", "LEQUEUX Augustin", "LEROUX Etienne", "LESNE Julien", "LHEPT Romain", "LOPEZ- -BESSAUD Kenji", "LOUZANI Amel", "LUBRANO LAVADERCI Jean-Baptiste", "MA Lindsey", "MAESTRAGGI Corentin", "MAIGRET Adrien", "MALOISEL--CAVACO Pierre", "MANI Adiel", "MAREC Guilhem", "MARETHEU Clément", "MARIE Julia", "MARILL Alban", "MARQUES Lucas", "MARTINS Mathis", "MASSALOUX--MERCKX Rudy", "MILLIET Arthur", "MIRBEY Maxime", "MOCHO Diane", "MOINIER Maxime", "MORIN Clarisse", "MORISOT Raphael", "MORVAN Quentin", "MOUTIN Hugo", "MUNIER Noe", "MUSY Manon"],
+      "Passage à partir de 16H": ["ABD EL WAHAB Moustafa", "ADOUAT Dary-Jean", "BENOIT Kouamedjo", "ALIBRANDI Luca", "ARMOOGUM Chandrani", "AUBRON Sidonie", "AUGIS Noah", "AVERTY Alexandre", "BARBAT DU CLOSEL Tanis", "BARBEAU Mathis", "BARBIER Florian", "BARTHES Flore", "BEHARELLE Quentin", "BEKKOUR Yannis", "BENHOUIDGA Sarah", "FELLAG Younes", "AIT DJOUDI OUFELLA Nahel", "BENICHOU Adrien", "BERTHIER Julien", "BENSAHEL--BAZOGE Eliott", "BOISSAY Valentin", "BONNET DE VILLER Estelle", "BORDIER Timothé", "BOUGHAYDAN Rayan", "BOULLE Emmanuelle", "BIDET Matis", "BREMME Gabriel", "BREVIERE Paul", "BRINDEJONC Olivier", "BROTONS Apolline", "BRUNET Maxime", "BRUNSVICK Milla", "BRUSTOLIN Jean", "BUE FONTAINE Alice", "BUREAU Emma", "BUREAU Anais", "BUREL Rose", "BUTTNER Tom", "CALMET Pierre", "CAPDEVIELLE Theo", "CARDON Doris", "CHARDONNAL Pauline", "CHARLES Rémi", "CHAZAL Antoine", "CHERRAK Adam", "CORNET--TRUELLE Alice", "COUNILH Quentin", "CRETINON Emilien", "CUCHE Romain", "DALLE Domitille", "DANGUY Quentin", "BOURSIER Louise", "DE JONCKERE Mattéo", "DE PASSOS Mathilde", "DEBIEB Ziad", "DESCOURTIS Louise", "DEUTSCH Maksimilien", "DOSCH Apolline", "DUBOIS Garance", "DUNON Lea", "DUONG Quentin", "DAUTEL Raphael", "DURAME Martin", "DURIS Cyran", "ECKENBERG--FRIEDLANDER Marius", "EL YAMANI Aya", "ERRIH Ilias", "EVEN Anthony", "FECHEROLLE Melusine", "DUPONT Alizée3", "FERRAND LAFFANOUR Guillaume", "FINET Cédric", "FORMENTO Marion", "FRANCINEAU Romane", "FRANCOIS Emeline"]
+    };
+
+    const ALIAS_CRENEAU = {
+      "14H": "Passage à partir de 14H",
+      "15H": "Passage à partir de 15H",
+      "16H": "Passage à partir de 16H"
+    };
+
+    // ====== 2. FONCTIONS DE NORMALISATION ======
+    function normalizeName(str) {
+      return str
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z\s]/g, "")
+        .trim()
+        .replace(/\s+/g, " ");
+    }
+
+    function isInList(list, name) {
+      const target = normalizeName(name);
+      for (const item of list) {
+        if (normalizeName(item) === target) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // ====== 3. SONS LOCAL (élève) ======
+    function playBeep(isOk) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+
+      if (isOk) {
+        osc.frequency.setValueAtTime(1200, ctx.currentTime);
+        gain.gain.setValueAtTime(0.16, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(1500, ctx.currentTime + 0.15);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.18);
+      } else {
+        osc.frequency.setValueAtTime(400, ctx.currentTime);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(300, ctx.currentTime + 0.4);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.45);
+      }
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+    }
+
+    // ====== 4. UI / Créneau ======
+    const selectCreneau = document.getElementById("creneau");
+    const inputNom = document.getElementById("nom");
+    const dataList = document.getElementById("listeNoms");
+    const btnValider = document.getElementById("valider");
+    const divResult = document.getElementById("result");
+    const labelCreneau = document.getElementById("labelCreneau");
+    const fbError = document.getElementById("fbError");
+
+    function updateNameList() {
+      const creneau = selectCreneau.value;
+      const liste = LISTES[creneau] || [];
+      dataList.innerHTML = "";
+      liste.forEach(nom => {
+        const opt = document.createElement("option");
+        opt.value = nom;
+        dataList.appendChild(opt);
+      });
+      inputNom.value = "";
+      divResult.style.display = "none";
+      document.body.classList.remove("ok-bg", "ko-bg");
+    }
+
+    selectCreneau.addEventListener("change", updateNameList);
+
+    // Verrouillage du créneau via l'URL (?creneau=...)
+    (function initCreneauFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      let c = params.get("creneau");
+      if (!c) {
+        updateNameList();
+        return;
+      }
+      if (!LISTES[c] && ALIAS_CRENEAU[c]) {
+        c = ALIAS_CRENEAU[c];
+      }
+      if (LISTES[c]) {
+        selectCreneau.value = c;
+        selectCreneau.disabled = true;
+        const badge = document.createElement("span");
+        badge.className = "creneau-locked-badge";
+        badge.textContent = "verrouillé par le QR code";
+        labelCreneau.appendChild(badge);
+      }
+      updateNameList();
+    })();
+
+    // ====== 5. Envoi Firestore (pour l'écran employé) ======
+    async function sendToFirestore(data) {
+      if (!db) {
+        fbError.style.display = "block";
+        fbError.textContent = "Présence non synchronisée (Firebase non configuré).";
+        return;
+      }
+      fbError.style.display = "none";
+      try {
+        await db.collection("presences").add(Object.assign(data, {
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        }));
+      } catch (e) {
+        console.error("Erreur enregistrement présence:", e);
+        fbError.style.display = "block";
+        fbError.textContent = "Erreur de synchronisation, mais ta présence locale est validée.";
+      }
+    }
+
+    // ====== 6. Validation ======
+    btnValider.addEventListener("click", async () => {
+      const creneau = selectCreneau.value;
+      const nom = inputNom.value;
+
+      document.body.classList.remove("ok-bg", "ko-bg");
+
+      if (!nom.trim()) {
+        divResult.style.display = "block";
+        divResult.textContent = "Merci de saisir ou choisir ton nom et prénom.";
+        divResult.className = "result ko";
+        playBeep(false);
+        document.body.classList.add("ko-bg");
+        return;
+      }
+
+      const liste = LISTES[creneau] || [];
+      const present = isInList(liste, nom);
+
+      if (present) {
+        divResult.style.display = "block";
+        divResult.textContent = "Présence validée ✅";
+        divResult.className = "result ok";
+        playBeep(true);
+        document.body.classList.add("ok-bg");
+      } else {
+        divResult.style.display = "block";
+        divResult.textContent = "Nom non trouvé dans la liste ❌";
+        divResult.className = "result ko";
+        playBeep(false);
+        document.body.classList.add("ko-bg");
+      }
+
+      // Envoi asynchrone vers Firestore
+      sendToFirestore({
+        nom: nom,
+        creneau: creneau,
+        present: present
+      });
+
+      inputNom.focus();
+      inputNom.select();
+    });
+
+    inputNom.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        btnValider.click();
+      }
+    });
+  </script>
+</body>
+</html>
