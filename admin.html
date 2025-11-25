@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Administration – Listes d'élèves</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 20px;
+      max-width: 900px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+    h1 {
+      font-size: 1.6rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .card {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+    }
+    label {
+      font-weight: 600;
+    }
+    input[type="file"] {
+      margin-top: 8px;
+    }
+    button {
+      margin-top: 16px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+    }
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+    .log {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      white-space: pre-line;
+    }
+    .ok { color: #166534; }
+    .ko { color: #b91c1c; }
+    ul { margin-top: 8px; }
+  </style>
+
+  <!-- Librairie pour lire les fichiers Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <h1>Administration – Listes d'élèves</h1>
+
+  <div class="card">
+    <p>
+      1. Choisir un fichier Excel (.xlsx) avec <strong>1 onglet = 1 créneau</strong>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;colonne A = Nom, colonne B = Prénom.<br>
+      2. Cliquer sur <strong>"Envoyer vers Firestore"</strong>.<br>
+      3. La page élèves utilisera automatiquement la nouvelle liste.
+    </p>
+
+    <label for="excel">Fichier Excel des élèves</label><br>
+    <input type="file" id="excel" accept=".xlsx,.xls">
+
+    <div id="preview"></div>
+
+    <button id="btnSend" disabled>Envoyer vers Firestore</button>
+
+    <div id="log" class="log"></div>
+  </div>
+
+  <script>
+    // === Config Firebase ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyBCi4rQd43QsxPektjewCC5Ym83jHMWddA",
+      authDomain: "app-epf-377c3.firebaseapp.com",
+      projectId: "app-epf-377c3",
+      storageBucket: "app-epf-377c3.firebasestorage.app",
+      messagingSenderId: "790462947678",
+      appId: "1:790462947678:web:c4755c8e410596120aefcf",
+      measurementId: "G-3FKJK8PVZ0"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const inputExcel = document.getElementById("excel");
+    const btnSend = document.getElementById("btnSend");
+    const preview = document.getElementById("preview");
+    const logDiv = document.getElementById("log");
+
+    let listesGlobales = null;
+
+    function log(msg, ok = true) {
+      logDiv.textContent = msg;
+      logDiv.className = "log " + (ok ? "ok" : "ko");
+    }
+
+    function lireExcel(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            resolve(workbook);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = (e) => reject(e);
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function extraireListes(workbook) {
+      const listes = {};
+      workbook.SheetNames.forEach((sheetName) => {
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const fullnames = [];
+        json.forEach((row) => {
+          const nom = (row[0] || "").toString().trim();
+          const prenom = (row[1] || "").toString().trim();
+          if (!nom && !prenom) return;
+          fullnames.push((nom + " " + prenom).trim());
+        });
+        if (fullnames.length) {
+          listes[sheetName] = fullnames;
+        }
+      });
+      return listes;
+    }
+
+    inputExcel.addEventListener("change", async () => {
+      const file = inputExcel.files[0];
+      if (!file) return;
+      log("Lecture du fichier Excel...");
+      try {
+        const wb = await lireExcel(file);
+        const listes = extraireListes(wb);
+        const sheets = Object.keys(listes);
+        if (!sheets.length) {
+          preview.innerHTML = "<p class='ko'>Aucune feuille valide trouvée (nom/prénom manquants).</p>";
+          btnSend.disabled = true;
+          listesGlobales = null;
+          log("Erreur : aucune feuille utilisable.", false);
+          return;
+        }
+        listesGlobales = listes;
+        const htmlList = sheets.map(
+          name => `<li><strong>${name}</strong> : ${listes[name].length} élèves</li>`
+        ).join("");
+        preview.innerHTML = "<p>Feuilles détectées :</p><ul>" + htmlList + "</ul>";
+        log("Fichier chargé, prêt à être envoyé ✅");
+        btnSend.disabled = false;
+      } catch (e) {
+        console.error(e);
+        log("Erreur lors de la lecture de l'Excel.", false);
+        btnSend.disabled = true;
+      }
+    });
+
+    btnSend.addEventListener("click", async () => {
+      if (!listesGlobales) return;
+      btnSend.disabled = true;
+      log("Envoi vers Firestore en cours...");
+      try {
+        const batch = db.batch();
+        const colRef = db.collection("listesEleves");
+
+        // Option : récupérer les docs existants pour les supprimer si ils ne sont plus dans l'Excel
+        const existingSnap = await colRef.get();
+        const nouveauxCreneaux = new Set(Object.keys(listesGlobales));
+
+        existingSnap.forEach(doc => {
+          if (!nouveauxCreneaux.has(doc.id)) {
+            batch.delete(colRef.doc(doc.id));
+          }
+        });
+
+        Object.entries(listesGlobales).forEach(([creneau, eleves]) => {
+          const docRef = colRef.doc(creneau);
+          batch.set(docRef, {
+            creneau: creneau,
+            eleves: eleves
+          });
+        });
+
+        await batch.commit();
+        log("Listes mises à jour dans Firestore ✅\nLa page élèves utilisera maintenant ces listes.");
+      } catch (e) {
+        console.error(e);
+        log("Erreur lors de l'écriture dans Firestore.", false);
+      } finally {
+        btnSend.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
