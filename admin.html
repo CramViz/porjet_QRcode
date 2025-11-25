@@ -232,36 +232,47 @@
       }
     });
 
-    // Bouton pour supprimer toutes les listes actuelles (dans Firestore)
+    // Bouton pour supprimer toutes les listes actuelles ET les présences
     btnClear.addEventListener("click", async () => {
       const ok = window.confirm(
-        "Voulez-vous vraiment supprimer la liste actuelle ?\n" +
-        "(Cela vide les créneaux dans l'application, mais ne supprime pas votre fichier Excel sur l'ordinateur.)"
+        "Voulez-vous vraiment supprimer la liste actuelle ET les passages enregistrés ?\n" +
+        "(Cela vide les créneaux et l'historique sur la page de vérification, mais ne supprime pas votre fichier Excel sur l'ordinateur.)"
       );
       if (!ok) return;
 
       btnSend.disabled = true;
       btnClear.disabled = true;
-      log("Suppression des listes actuelles en cours...");
+      log("Suppression des listes et des présences en cours...");
 
       try {
-        const colRef = db.collection("listesEleves");
-        const snap = await colRef.get();
-        if (snap.empty) {
-          log("Aucune liste à supprimer (listesEleves est déjà vide).", false);
-        } else {
-          const batch = db.batch();
-          snap.forEach(doc => {
-            batch.delete(colRef.doc(doc.id));
+        // 1) Supprimer listesEleves
+        const colListes = db.collection("listesEleves");
+        const snapListes = await colListes.get();
+        if (!snapListes.empty) {
+          const batch1 = db.batch();
+          snapListes.forEach(doc => {
+            batch1.delete(colListes.doc(doc.id));
           });
-          await batch.commit();
-          log("Toutes les listes ont été supprimées de Firestore ✅");
+          await batch1.commit();
         }
+
+        // 2) Supprimer presences
+        const colPres = db.collection("presences");
+        const snapPres = await colPres.get();
+        if (!snapPres.empty) {
+          const batch2 = db.batch();
+          snapPres.forEach(doc => {
+            batch2.delete(colPres.doc(doc.id));
+          });
+          await batch2.commit();
+        }
+
+        log("Listes d'élèves et présences supprimées de Firestore ✅");
         preview.innerHTML = "";
         listesGlobales = null;
       } catch (e) {
         console.error(e);
-        log("Erreur lors de la suppression des listes.", false);
+        log("Erreur lors de la suppression des listes / présences.", false);
       } finally {
         btnSend.disabled = !listesGlobales;
         btnClear.disabled = false;
