@@ -2,152 +2,89 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Présence - Écran employé</title>
+  <title>Administration – Listes d'élèves</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       padding: 20px;
-      max-width: 800px;
+      max-width: 900px;
       margin: 0 auto;
       background: #f5f5f5;
-      transition: background-color 0.2s ease;
     }
-    body.ok-bg { background: #dcfce7; }
-    body.ko-bg { background: #fee2e2; }
     h1 {
       font-size: 1.6rem;
       text-align: center;
       margin-bottom: 1rem;
     }
-    h1 small {
-      font-size: 0.9rem;
-      font-weight: 400;
-      color: #555;
-    }
-    .big-card {
+    .card {
       background: white;
-      padding: 20px;
-      border-radius: 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      margin-bottom: 16px;
-      text-align: center;
-    }
-    .status-text {
-      font-size: 2rem;
-      font-weight: 800;
-      margin-bottom: 8px;
-    }
-    .status-detail {
-      font-size: 1.1rem;
-    }
-    .ok-text { color: #166534; }
-    .ko-text { color: #991b1b; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-      background: white;
+      padding: 16px;
       border-radius: 12px;
-      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
     }
-    th, td {
-      padding: 8px 10px;
-      border-bottom: 1px solid #e5e7eb;
-      font-size: 0.9rem;
-      text-align: left;
-    }
-    th {
-      background: #eff6ff;
-      font-weight: 700;
-    }
-    tr:last-child td { border-bottom: none; }
-    .badge-present {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: #bbf7d0;
-      color: #166534;
-      font-size: 0.75rem;
+    label {
       font-weight: 600;
     }
-    .badge-absent {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: #fecaca;
-      color: #991b1b;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    .hint {
+    input[type="file"] {
       margin-top: 8px;
-      font-size: 0.8rem;
-      color: #555;
-      text-align: center;
     }
-    .error-msg {
-      font-size: 0.9rem;
-      color: #b91c1c;
-      margin-top: 8px;
-      text-align: center;
-    }
-    .admin-btn {
-      margin-top: 12px;
-      display: inline-block;
-      padding: 8px 16px;
+    button {
+      margin-top: 16px;
+      padding: 10px 18px;
       border-radius: 999px;
       border: none;
-      background: #111827;
-      color: white;
-      font-size: 0.9rem;
+      font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
+      background: #2563eb;
+      color: white;
     }
-    .admin-btn:active {
-      transform: scale(0.98);
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
     }
+    .log {
+      margin-top: 10px;
+      font-size: 0.9rem;
+      white-space: pre-line;
+    }
+    .ok { color: #166534; }
+    .ko { color: #b91c1c; }
+    ul { margin-top: 8px; }
   </style>
-</head>
-<body>
-  <h1>Suivi en temps réel<br><small>Mode employé</small></h1>
 
-  <div class="big-card">
-    <div id="statusText" class="status-text">En attente de scan...</div>
-    <div id="statusDetail" class="status-detail">Le dernier passage s'affichera ici.</div>
-  </div>
+  <!-- Librairie pour lire les fichiers Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Heure</th>
-        <th>Créneau</th>
-        <th>Nom</th>
-        <th>Statut</th>
-      </tr>
-    </thead>
-    <tbody id="logBody">
-    </tbody>
-  </table>
-
-  <div id="fbError" class="error-msg" style="display:none;"></div>
-  <div class="hint">
-    Laisse cette page ouverte sur l'écran de l'employé.<br>
-    À chaque validation sur un téléphone, le dernier passage apparaît ici avec un bip + couleur.
-  </div>
-
-  <!-- Bouton vers l'interface d’administration -->
-  <div style="text-align:center; margin-top: 12px;">
-    <button class="admin-btn" onclick="window.location.href='admin.html'">
-      Aller à l'interface admin
-    </button>
-  </div>
-
-  <!-- Firebase -->
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <h1>Administration – Listes d'élèves</h1>
+
+  <div class="card">
+    <p>
+      1. Choisir un fichier Excel (.xlsx) avec <strong>1 onglet = 1 créneau</strong>,<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;colonne A = Nom, colonne B = Prénom.<br>
+      2. Cliquer sur <strong>"Envoyer vers Firestore"</strong>.<br>
+      3. La page élèves utilisera automatiquement la nouvelle liste.
+    </p>
+
+    <label for="excel">Fichier Excel des élèves</label><br>
+    <input type="file" id="excel" accept=".xlsx,.xls">
+
+    <div id="preview"></div>
+
+    <button id="btnSend" disabled>Envoyer vers Firestore</button>
+
+    <div id="log" class="log"></div>
+  </div>
 
   <script>
+    // === Config Firebase ===
     const firebaseConfig = {
       apiKey: "AIzaSyBCi4rQd43QsxPektjewCC5Ym83jHMWddA",
       authDomain: "app-epf-377c3.firebaseapp.com",
@@ -158,121 +95,121 @@
       measurementId: "G-3FKJK8PVZ0"
     };
 
-    let db = null;
-    try {
-      firebase.initializeApp(firebaseConfig);
-      db = firebase.firestore();
-    } catch (e) {
-      console.error("Erreur Firebase:", e);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const inputExcel = document.getElementById("excel");
+    const btnSend = document.getElementById("btnSend");
+    const preview = document.getElementById("preview");
+    const logDiv = document.getElementById("log");
+
+    let listesGlobales = null;
+
+    function log(msg, ok = true) {
+      logDiv.textContent = msg;
+      logDiv.className = "log " + (ok ? "ok" : "ko");
     }
 
-    const fbError = document.getElementById("fbError");
-    const statusText = document.getElementById("statusText");
-    const statusDetail = document.getElementById("statusDetail");
-    const logBody = document.getElementById("logBody");
-
-    function playBeep(isOk) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-
-      if (isOk) {
-        osc.frequency.setValueAtTime(1100, ctx.currentTime);
-        gain.gain.setValueAtTime(0.18, ctx.currentTime);
-        osc.frequency.linearRampToValueAtTime(1400, ctx.currentTime + 0.18);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.2);
-      } else {
-        osc.frequency.setValueAtTime(380, ctx.currentTime);
-        gain.gain.setValueAtTime(0.22, ctx.currentTime);
-        osc.frequency.linearRampToValueAtTime(300, ctx.currentTime + 0.45);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.5);
-      }
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-    }
-
-    function formatDate(ts) {
-      if (!ts) return "";
-      const d = ts.toDate ? ts.toDate() : new Date(ts);
-      return d.toLocaleTimeString("fr-FR", {
-        hour: "2-digit", minute: "2-digit", second: "2-digit"
+    function lireExcel(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            resolve(workbook);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = (e) => reject(e);
+        reader.readAsArrayBuffer(file);
       });
     }
 
-    if (!db) {
-      fbError.style.display = "block";
-      fbError.textContent = "Firebase non configuré. Impossible de recevoir les présences.";
-    } else {
-      fbError.style.display = "none";
-      let firstSnapshot = true;
-      db.collection("presences")
-        .orderBy("timestamp", "desc")
-        .limit(20)
-        .onSnapshot((snapshot) => {
-          if (snapshot.empty) {
-            statusText.textContent = "En attente de scan...";
-            statusDetail.textContent = "Le dernier passage s'affichera ici.";
-            return;
-          }
-
-          logBody.innerHTML = "";
-          snapshot.forEach((doc) => {
-            const data = doc.data();
-            const tr = document.createElement("tr");
-            const tdHeure = document.createElement("td");
-            const tdCreneau = document.createElement("td");
-            const tdNom = document.createElement("td");
-            const tdStatut = document.createElement("td");
-
-            tdHeure.textContent = formatDate(data.timestamp);
-            tdCreneau.textContent = data.creneau || "";
-            tdNom.textContent = data.nom || "";
-            const badge = document.createElement("span");
-            if (data.present) {
-              badge.className = "badge-present";
-              badge.textContent = "Présent";
-            } else {
-              badge.className = "badge-absent";
-              badge.textContent = "Non trouvé";
-            }
-            tdStatut.appendChild(badge);
-
-            tr.appendChild(tdHeure);
-            tr.appendChild(tdCreneau);
-            tr.appendChild(tdNom);
-            tr.appendChild(tdStatut);
-            logBody.appendChild(tr);
-          });
-
-          const latest = snapshot.docs[0].data();
-          statusText.textContent = latest.nom || "(nom manquant)";
-          statusDetail.textContent = (latest.present ? "Présent" : "Nom non trouvé") + " · " + (latest.creneau || "");
-
-          document.body.classList.remove("ok-bg", "ko-bg");
-          document.body.classList.add(latest.present ? "ok-bg" : "ko-bg");
-
-          if (firstSnapshot) {
-            firstSnapshot = false;
-            return;
-          }
-
-          playBeep(!!latest.present);
-
-          setTimeout(() => {
-            document.body.classList.remove("ok-bg", "ko-bg");
-          }, 2000);
-        }, (error) => {
-          console.error("Erreur écoute Firestore:", error);
-          fbError.style.display = "block";
-          fbError.textContent = "Erreur de connexion à Firebase.";
+    function extraireListes(workbook) {
+      const listes = {};
+      workbook.SheetNames.forEach((sheetName) => {
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const fullnames = [];
+        json.forEach((row) => {
+          const nom = (row[0] || "").toString().trim();
+          const prenom = (row[1] || "").toString().trim();
+          if (!nom && !prenom) return;
+          fullnames.push((nom + " " + prenom).trim());
         });
+        if (fullnames.length) {
+          listes[sheetName] = fullnames;
+        }
+      });
+      return listes;
     }
+
+    inputExcel.addEventListener("change", async () => {
+      const file = inputExcel.files[0];
+      if (!file) return;
+      log("Lecture du fichier Excel...");
+      try {
+        const wb = await lireExcel(file);
+        const listes = extraireListes(wb);
+        const sheets = Object.keys(listes);
+        if (!sheets.length) {
+          preview.innerHTML = "<p class='ko'>Aucune feuille valide trouvée (nom/prénom manquants).</p>";
+          btnSend.disabled = true;
+          listesGlobales = null;
+          log("Erreur : aucune feuille utilisable.", false);
+          return;
+        }
+        listesGlobales = listes;
+        const htmlList = sheets.map(
+          name => `<li><strong>${name}</strong> : ${listes[name].length} élèves</li>`
+        ).join("");
+        preview.innerHTML = "<p>Feuilles détectées :</p><ul>" + htmlList + "</ul>";
+        log("Fichier chargé, prêt à être envoyé ✅");
+        btnSend.disabled = false;
+      } catch (e) {
+        console.error(e);
+        log("Erreur lors de la lecture de l'Excel.", false);
+        btnSend.disabled = true;
+      }
+    });
+
+    btnSend.addEventListener("click", async () => {
+      if (!listesGlobales) return;
+      btnSend.disabled = true;
+      log("Envoi vers Firestore en cours...");
+      try {
+        const batch = db.batch();
+        const colRef = db.collection("listesEleves");
+
+        // Option : récupérer les docs existants pour les supprimer si ils ne sont plus dans l'Excel
+        const existingSnap = await colRef.get();
+        const nouveauxCreneaux = new Set(Object.keys(listesGlobales));
+
+        existingSnap.forEach(doc => {
+          if (!nouveauxCreneaux.has(doc.id)) {
+            batch.delete(colRef.doc(doc.id));
+          }
+        });
+
+        Object.entries(listesGlobales).forEach(([creneau, eleves]) => {
+          const docRef = colRef.doc(creneau);
+          batch.set(docRef, {
+            creneau: creneau,
+            eleves: eleves
+          });
+        });
+
+        await batch.commit();
+        log("Listes mises à jour dans Firestore ✅\nLa page élèves utilisera maintenant ces listes.");
+      } catch (e) {
+        console.error(e);
+        log("Erreur lors de l'écriture dans Firestore.", false);
+      } finally {
+        btnSend.disabled = false;
+      }
+    });
   </script>
 </body>
 </html>

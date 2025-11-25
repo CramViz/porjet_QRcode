@@ -92,6 +92,21 @@
       margin-top: 8px;
       text-align: center;
     }
+    .admin-btn {
+      margin-top: 12px;
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: none;
+      background: #111827;
+      color: white;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .admin-btn:active {
+      transform: scale(0.98);
+    }
   </style>
 </head>
 <body>
@@ -119,6 +134,13 @@
   <div class="hint">
     Laisse cette page ouverte sur l'écran de l'employé.<br>
     À chaque validation sur un téléphone, le dernier passage apparaît ici avec un bip + couleur.
+  </div>
+
+  <!-- Bouton vers l'interface d’administration -->
+  <div style="text-align:center; margin-top: 12px;">
+    <button class="admin-btn" onclick="window.location.href='admin.html'">
+      Aller à l'interface admin
+    </button>
   </div>
 
   <!-- Firebase -->
