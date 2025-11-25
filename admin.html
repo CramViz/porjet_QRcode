@@ -53,6 +53,19 @@
     .ok { color: #166534; }
     .ko { color: #b91c1c; }
     ul { margin-top: 8px; }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn-secondary {
+      background: #111827;
+    }
+    .btn-danger {
+      background: #b91c1c;
+    }
   </style>
 
   <!-- Librairie pour lire les fichiers Excel -->
@@ -78,7 +91,13 @@
 
     <div id="preview"></div>
 
-    <button id="btnSend" disabled>Envoyer vers Firestore</button>
+    <div class="btn-row">
+      <button id="btnSend" disabled>Envoyer vers Firestore</button>
+      <button id="btnClear" class="btn-danger">Supprimer la liste actuelle</button>
+      <button type="button" class="btn-secondary" onclick="window.location.href='verification.html'">
+        Revenir à la page de vérification
+      </button>
+    </div>
 
     <div id="log" class="log"></div>
   </div>
@@ -100,6 +119,7 @@
 
     const inputExcel = document.getElementById("excel");
     const btnSend = document.getElementById("btnSend");
+    const btnClear = document.getElementById("btnClear");
     const preview = document.getElementById("preview");
     const logDiv = document.getElementById("log");
 
@@ -178,12 +198,12 @@
     btnSend.addEventListener("click", async () => {
       if (!listesGlobales) return;
       btnSend.disabled = true;
+      btnClear.disabled = true;
       log("Envoi vers Firestore en cours...");
       try {
         const batch = db.batch();
         const colRef = db.collection("listesEleves");
 
-        // Option : récupérer les docs existants pour les supprimer si ils ne sont plus dans l'Excel
         const existingSnap = await colRef.get();
         const nouveauxCreneaux = new Set(Object.keys(listesGlobales));
 
@@ -208,6 +228,43 @@
         log("Erreur lors de l'écriture dans Firestore.", false);
       } finally {
         btnSend.disabled = false;
+        btnClear.disabled = false;
+      }
+    });
+
+    // Bouton pour supprimer toutes les listes actuelles (dans Firestore)
+    btnClear.addEventListener("click", async () => {
+      const ok = window.confirm(
+        "Voulez-vous vraiment supprimer la liste actuelle ?\n" +
+        "(Cela vide les créneaux dans l'application, mais ne supprime pas votre fichier Excel sur l'ordinateur.)"
+      );
+      if (!ok) return;
+
+      btnSend.disabled = true;
+      btnClear.disabled = true;
+      log("Suppression des listes actuelles en cours...");
+
+      try {
+        const colRef = db.collection("listesEleves");
+        const snap = await colRef.get();
+        if (snap.empty) {
+          log("Aucune liste à supprimer (listesEleves est déjà vide).", false);
+        } else {
+          const batch = db.batch();
+          snap.forEach(doc => {
+            batch.delete(colRef.doc(doc.id));
+          });
+          await batch.commit();
+          log("Toutes les listes ont été supprimées de Firestore ✅");
+        }
+        preview.innerHTML = "";
+        listesGlobales = null;
+      } catch (e) {
+        console.error(e);
+        log("Erreur lors de la suppression des listes.", false);
+      } finally {
+        btnSend.disabled = !listesGlobales;
+        btnClear.disabled = false;
       }
     });
   </script>
